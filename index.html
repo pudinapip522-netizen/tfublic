@@ -1,0 +1,166 @@
+<?php require_once 'includes/header.php';
+
+// Hero articles (featured first, then newest)
+$hero_r = $conn->query("SELECT a.*, c.name cat FROM articles a LEFT JOIN categories c ON a.category_id=c.id WHERE a.status='Publish' ORDER BY a.is_featured DESC, a.id DESC LIMIT 3");
+$heroes = [];
+if ($hero_r) { while($r = $hero_r->fetch_assoc()) $heroes[] = $r; }
+
+// Default unsplash images for articles without images
+$default_imgs = [
+    'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80',
+    'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=800&q=80',
+    'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&q=80',
+];
+function article_img($a, $i=0) {
+    global $base_url, $default_imgs;
+    if (!empty($a['image']) && $a['image'] != 'default.jpg') return $base_url.'/uploads/'.$a['image'];
+    return $default_imgs[$i % count($default_imgs)];
+}
+?>
+
+<!-- Hero Section -->
+<?php if(count($heroes) >= 3): ?>
+<div class="container">
+<div class="hero">
+    <a href="<?=$base_url?>/pages/article.php?slug=<?=$heroes[0]['slug']?>" class="hero-card hero-main">
+        <img src="<?=article_img($heroes[0],0)?>" alt="<?=e($heroes[0]['title'])?>">
+        <div class="overlay"><div class="cat"><?=e($heroes[0]['cat']??'')?></div><h2><?=e($heroes[0]['title'])?></h2></div>
+    </a>
+    <div class="hero-side">
+        <?php for($i=1;$i<3;$i++):?>
+        <a href="<?=$base_url?>/pages/article.php?slug=<?=$heroes[$i]['slug']?>" class="hero-card">
+            <img src="<?=article_img($heroes[$i],$i)?>" alt="<?=e($heroes[$i]['title'])?>">
+            <div class="overlay"><div class="cat"><?=e($heroes[$i]['cat']??'')?></div><h2><?=e($heroes[$i]['title'])?></h2></div>
+        </a>
+        <?php endfor;?>
+    </div>
+</div>
+</div>
+<?php endif;?>
+
+<div class="container main-grid">
+    <main>
+        <h2 class="section-title">Berita Terbaru</h2>
+        <div class="article-grid">
+        <?php
+        $ppp = (int)setting('posts_per_page', 12);
+        $latest = $conn->query("SELECT a.*, c.name cat FROM articles a LEFT JOIN categories c ON a.category_id=c.id WHERE a.status='Publish' ORDER BY a.id DESC LIMIT $ppp OFFSET 3");
+        $idx=0;
+        if($latest): while($r = $latest->fetch_assoc()):
+        ?>
+        <a href="<?=$base_url?>/pages/article.php?slug=<?=$r['slug']?>" class="card">
+            <div class="card-img"><img src="<?=article_img($r,$idx)?>" alt="<?=e($r['title'])?>" loading="lazy"></div>
+            <div class="card-body">
+                <span class="card-cat"><?=e($r['cat']??'')?></span>
+                <h3 class="card-title"><?=e($r['title'])?></h3>
+                <div class="card-meta"><i class="far fa-clock"></i> <?=date('d M Y',strtotime($r['created_at']))?></div>
+            </div>
+        </a>
+        <?php
+        // In-feed ad every 5 articles
+        $infeed = get_infeed_ad($idx, 5);
+        if($infeed):?>
+        <div class="infeed-ad-card"><div class="ad-label">Sponsored</div><?=$infeed?></div>
+        <?php endif;?>
+        <?php $idx++; endwhile; endif;?>
+        </div>
+    </main>
+
+    <aside>
+        <!-- 🔥 Widget: Trending -->
+        <div class="sidebar-widget">
+            <div class="widget-title"><i class="fas fa-fire" style="color:var(--red);margin-right:6px"></i> Trending</div>
+            <div style="counter-reset:trend">
+            <?php $pop=$conn->query("SELECT * FROM articles WHERE status='Publish' ORDER BY views DESC LIMIT 5");
+            if($pop): while($p=$pop->fetch_assoc()):?>
+            <div class="trending-item">
+                <div>
+                    <a href="<?=$base_url?>/pages/article.php?slug=<?=$p['slug']?>"><h4><?=e($p['title'])?></h4></a>
+                    <div class="views"><i class="fas fa-eye"></i> <?=number_format($p['views'])?> views</div>
+                </div>
+            </div>
+            <?php endwhile; endif;?>
+            </div>
+        </div>
+
+        <!-- 📊 Widget: Populer dengan Thumbnail -->
+        <div class="sidebar-widget">
+            <div class="widget-title"><i class="fas fa-chart-line" style="color:var(--blue);margin-right:6px"></i> Populer</div>
+            <?php $pop2=$conn->query("SELECT * FROM articles WHERE status='Publish' ORDER BY views DESC LIMIT 4");
+            if($pop2): while($p2=$pop2->fetch_assoc()):?>
+            <div style="display:flex;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+                <?php $pimg=(!empty($p2['image'])&&$p2['image']!='default.jpg')?$base_url.'/uploads/'.$p2['image']:'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=200&q=60'; ?>
+                <img src="<?=$pimg?>" style="width:80px;height:60px;object-fit:cover;border-radius:4px;flex-shrink:0" loading="lazy">
+                <div>
+                    <a href="<?=$base_url?>/pages/article.php?slug=<?=$p2['slug']?>" style="font-size:13px;font-weight:600;line-height:1.4;display:block"><?=e($p2['title'])?></a>
+                    <small style="color:var(--text-muted);font-size:11px"><i class="far fa-clock"></i> <?=date('d M Y',strtotime($p2['created_at']))?></small>
+                </div>
+            </div>
+            <?php endwhile; endif;?>
+        </div>
+
+        <!-- 📢 Sidebar Top Ad (300x250) -->
+        <?php $sad_top=get_ads('sidebar_top');if($sad_top):?>
+        <div class="sidebar-widget" style="text-align:center">
+            <div class="ad-label">Advertisement</div>
+            <?=$sad_top?>
+        </div>
+        <?php endif;?>
+
+        <!-- 📁 Widget: Kategori -->
+        <div class="sidebar-widget">
+            <div class="widget-title"><i class="fas fa-folder-open" style="color:#f59e0b;margin-right:6px"></i> Kategori</div>
+            <ul style="list-style:none;padding:0;margin:0">
+            <?php $side_cats=$conn->query("SELECT c.*, COUNT(a.id) as total FROM categories c LEFT JOIN articles a ON c.id=a.category_id AND a.status='Publish' GROUP BY c.id ORDER BY c.name");
+            if($side_cats): while($sc=$side_cats->fetch_assoc()):?>
+            <li style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+                <a href="<?=$base_url?>/pages/category.php?slug=<?=e($sc['slug']??'')?>" style="font-size:13px;font-weight:500">
+                    <i class="fas fa-chevron-right" style="font-size:9px;color:var(--text-muted);margin-right:6px"></i><?=e($sc['name'])?>
+                </a>
+                <span style="background:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;color:var(--text-muted);font-weight:600"><?=$sc['total']?></span>
+            </li>
+            <?php endwhile; endif;?>
+            </ul>
+        </div>
+
+        <!-- 🏷️ Widget: Tags Cloud -->
+        <div class="sidebar-widget">
+            <div class="widget-title"><i class="fas fa-tags" style="color:#8b5cf6;margin-right:6px"></i> Tags Populer</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <?php $tags=$conn->query("SELECT t.name,t.slug,COUNT(at.article_id) c FROM tags t LEFT JOIN article_tags at ON t.id=at.tag_id GROUP BY t.id ORDER BY c DESC LIMIT 15");
+            if($tags): while($t=$tags->fetch_assoc()):?>
+            <a href="<?=$base_url?>/pages/search.php?q=<?=urlencode($t['name'])?>" style="background:var(--bg);border:1px solid var(--border);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;color:var(--text);transition:.2s"><?=e($t['name'])?></a>
+            <?php endwhile; endif;?>
+            </div>
+        </div>
+
+        <!-- 📌 Widget: Sosial Media -->
+        <div class="sidebar-widget">
+            <div class="widget-title"><i class="fas fa-share-alt" style="color:#ec4899;margin-right:6px"></i> Ikuti Kami</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <a href="<?=e(setting('facebook_url','#'))?>" target="_blank" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1877f2;color:#fff;border-radius:6px;font-size:12px;font-weight:600"><i class="fab fa-facebook-f"></i> Facebook</a>
+                <a href="<?=e(setting('twitter_url','#'))?>" target="_blank" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#1da1f2;color:#fff;border-radius:6px;font-size:12px;font-weight:600"><i class="fab fa-twitter"></i> Twitter</a>
+                <a href="<?=e(setting('instagram_url','#'))?>" target="_blank" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border-radius:6px;font-size:12px;font-weight:600"><i class="fab fa-instagram"></i> Instagram</a>
+                <a href="<?=e(setting('youtube_url','#'))?>" target="_blank" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#ff0000;color:#fff;border-radius:6px;font-size:12px;font-weight:600"><i class="fab fa-youtube"></i> YouTube</a>
+            </div>
+        </div>
+
+        <!-- 📢 Sidebar Middle Ad - STICKY (300x600) -->
+        <?php $sad_mid=get_ads('sidebar_mid');if($sad_mid):?>
+        <div class="sidebar-widget sidebar-sticky" style="text-align:center">
+            <div class="ad-label">Advertisement</div>
+            <?=$sad_mid?>
+        </div>
+        <?php endif;?>
+
+        <!-- 📢 Sidebar Bottom Ad (300x250) -->
+        <?php $sad_bot=get_ads('sidebar_bottom');if($sad_bot):?>
+        <div class="sidebar-widget" style="text-align:center">
+            <div class="ad-label">Advertisement</div>
+            <?=$sad_bot?>
+        </div>
+        <?php endif;?>
+    </aside>
+</div>
+
+<?php require_once 'includes/footer.php';?>
